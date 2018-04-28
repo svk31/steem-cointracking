@@ -1,3 +1,5 @@
 node_modules
 .idea
-steem-transactions.csv
+*.csv
+run_accounts.sh
+output/*

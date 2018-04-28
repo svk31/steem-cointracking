@@ -1,57 +1,56 @@
-This is an import script for getting STEEM transactions into the CoinTracking.info site.
+This is an import script for getting STEEM transactions into the CoinTracking.info site. It also includes a Poloniex history parser that groups orders by order number and reformats deposit/withdrawal history in the standard CoinTracking csv format.
 
-[CoinTracking](https://cointracking.info) is a portfolio website for tracking cryptocurrency assets. They have lots of exchanges and blockchains already integrated with the site to import automatically, but [STEEM](https://steem.io/) is not one of them. However, they do have a "Custom Exchange Import" option to add in different exchanges that don't have a dedicated import option.
+This script started out as a fork of [steem-report](https://github.com/MidnightLightning/steem-report) but has since been refactored almost completely, since the `getAccountHistory` used in that repo appears to be broken.
 
-This script uses the [`steem-js`](https://github.com/steemit/steem-js) library to make a connection to the STEEM blockchain, fetches all transactions for a given user, and converts it to a CSV file that can be imported into CoinTracking.
+[CoinTracking](https://cointracking.info) is a portfolio website for tracking cryptocurrency assets. They have lots of exchanges and blockchains already integrated with the site to import automatically, but [STEEM](https://steem.io/) is not one of them. However, they do have a "Bulk CSV Import" option to add in data from different exchanges that don't have a dedicated import option.
+
+This script uses the amazing [SteemData](https://steemdata.com/) service provided by @netherdrake to fetch all transactions for a given user, and converts it to a CSV file that can be imported into CoinTracking.
 
 [![cc-by-sa](https://i.creativecommons.org/l/by-sa/4.0/88x31.png)](http://creativecommons.org/licenses/by-sa/4.0/)
 
 # Usage
-This script requires Node to run; either install Node locally and run
+This script requires Node to run; install Node locally and run:
 
 ```
 npm install
-node app.js myUsername
+node app.js myUsername [debug] [no_grouping] [op_type_filter]
 ```
 
-or, if you wish to use Docker as a way to containerize the process:
+Replace `myUsername` with the STEEM user you wish to make a report for. Since STEEM data is completely open, there are no login credentials needed to get a full transaction report on any user.
 
-```
-docker run -it --rm -v "$PWD":/app -w /app node:8 npm install
-docker run -it --rm -v "$PWD":/app -w /app node:8 node app.js myUsername
-```
+The debug, no_grouping and op_type_filter parameters are optional. Debug=true will print out a summary of operations and balances.
+`debug = true|false, default = false`
+`no_grouping = true|false, default = false`
+`op_type_filter = transfer, fill_order, etc, default=none`
 
-In either case, replace `myUsername` with the STEEM user you wish to make a report for. Since STEEM data is completely open, there's no login credentials needed to get a full transaction report on any user.
+Running the script will create a `{username}-steem-transactions.csv` file in the `output` folder of the project. Head to the [CSV Import](https://cointracking.info/import/import_csv/) screen of CoinTracking (Enter Coins > Bulk Imports > CSV Import) and select that CSV file as the target.
 
-Either process will create a `steem-transactions.csv` file in the root folder of the project (alongside the `app.js` file). Head to the [Custom Import](https://cointracking.info/import/custom/) screen of CoinTracking (Enter Coins > Bulk Imports > Custom Exchange Import) and select that CSV file as the target.
+## Automating multiple accounts
+If you have several accounts you can rename `run_accounts_example.sh` and input your desired accounts there as shown. Then run it using:
+`. ./run_accounts.sh`
 
+This will fetch data for all accounts and save the output in `output`.
 
-Click the "Continue to Import" button to progress to the next screen of the import wizard, where you'll have to set some preferences on how to import the data:
+To merge all the different CSV files together for one single import operation, use the `merge.sh` script:
 
-- **Column separator:** Comma
-- **First Line:** Line 2
-- **Trade date:** Column 9
-- **Buy amount:** Column 3
-- **Buy currency:** Column 4
-- **Sell amount:** Column 5
-- **Sell currency:** Column 6
-- **Trade ID:** Column 1
-- **Comment:** Column 7
-- **Set Exchange:** "STEEM Blockchain" (or whatever you want to identify this import as)
+`. ./merge.sh`
 
-Under "Parameters", drop down the "`<none>`" option and pick "Declare as Deposit", then pick "Column 2" from the drop-down that appears, and put "Income" in the text box. Repeat for "Deposit", and create another one for "Withdrawal". When done, your import settings should look like:
-
-![Import Preferences](import-preferences.png)
-
-You can use the "Save/load settings" option on the right to save this import setup for future use.
-
-The script uses the STEEM blockchain transaction ID as the unique identifier for each transaction, so re-running the script in the future will create a CSV with all transactions, but you can safely import the whole file into CoinTracking, since it will notice the same identifier (assuming you set the "Trade ID" parameter correctly, and have the "Skip duplicates" option set to "yes") and not re-import that transaction.
+ This will generate a file called `all-merged.csv` in the root folder. Instead of importing all the different files manually you can import this file directly in Cointracking as explained above.
 
 # Caveats
-CoinTracking doesn't have a "STEEM Power" (SP) or "Vests" currency, so tracking Steem Power can't be done treating it as a currency. However, the way STEEM Power works on the STEEM blockchain is that it's just STEEM that's staked (held in a different location). So, you can track it on CoinTracking as the STEEM currency, and using a different "exchange" to keep it separate.
+I've classified block production as Mining, and Author/Curation rewards as Income. You're free to change this however you like, the same goes for any of the many operation types.
 
-This import script does set transactions to STEEM power as separate deposit/withdrawal transactions, but due to the nature of the CoinTracking import, they'll appear in the same "exchange" after import. So, after importing, search for the phrase "From STEEM" in the comment field, and you'll find all the "Deposit" actions that should have their "exchange" value modified to be "STEEM Power" or the like.
+I've also added grouping for many operation types, since STEEM generates an enormous amount of transactions. Most groupings are by day, for example author rewards and curation rewards.
 
-Also, when importing into CoinTracking, the only option for incoming funds is "Deposit" (no separation of Income from a transaction). So, all author curation and comment curation rewards are set to "Deposit" by default. To easily find those to set them to "Income", search for "Claiming reward balance" in the comment field.
+ If you see a better way of doing things, please open an issue and let me know.
 
-Of those "reward balance" ones, the ones that are "Claiming reward balance - Power" are the ones that are denoted in the STEEM currency, but were claimed directly to STEEM Power (change their "exchange" to "STEEM Power" to separate them out).
+## Early mining
+There are issues with the STEEM history for older accounts that participated in the initial mining phase. The producer rewards for that phase are not recorded in the current history, causing missing balances. To compensate for this, I've assigned the difference between the final balance and the actual balance to these early mining operations.
+
+## VESTS to STEEM conversion
+In order to track the actual value of VESTS, I've added bi-weekly deposits of STEEM that correspond to the current balance of VESTS. This conversion is done using a formula to calculate the steem_per_mvests ratio found here: https://steemit.com/steemdev/@holger80/how-to-estimate-historic-steempermvests-values-for-converting-old-rewards-from-vest-to-steem
+
+I noticed that this formula broke down completely for the early mining phase, so I extracted actual values manually from the blockchain and stored them in a json file. These values were then used to interpolate a better value for early steem_per_mvests ratios.
+
+## VESTS inaccuracies
+Despite having spent a lot of time debugging the various operations and tracking down many bugs, there are still accounts where the final calculated balances are different from the actual balances. One of my accounts is a good example, `witness.svk`. This account has a large discrepancy in the final balance of MVESTS, and I've so far been unable to track down why. There may be other inaccuracies as well.

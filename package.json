@@ -1,11 +1,13 @@
 {
-  "name": "steem-report",
+  "name": "steem-cointracking",
   "version": "1.0.0",
-  "description": "Create a CSV export of content from the STEEM Blockchain",
+  "description": "Create a CSV export of content from the STEEM Blockchain for use with Cointracking.info",
   "main": "app.js",
-  "author": "Brooks Boyd <bro@oks.me>",
+  "author": "svk31",
   "license": "Creative Commons Attribution-ShareAlike 4.0 International License",
   "dependencies": {
-    "steem": "^0.7.1"
+    "moment": "^2.22.0",
+    "mongodb": "^3.0.6",
+    "node-fetch": "^2.1.2"
   }
 }
