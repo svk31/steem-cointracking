@@ -1,10 +1,10 @@
 This is an import script for getting STEEM transactions into the CoinTracking.info site. It also includes a Poloniex history parser that groups orders by order number and reformats deposit/withdrawal history in the standard CoinTracking csv format.
 
-This script started out as a fork of [steem-report](https://github.com/MidnightLightning/steem-report) but has since been refactored almost completely, since the `getAccountHistory` used in that repo appears to be broken.
+This script started out as a fork of [steem-report](https://github.com/MidnightLightning/steem-report) but has since been refactored almost completely, since the `getAccountHistory` API call used in that repo appears to be broken.
 
 [CoinTracking](https://cointracking.info) is a portfolio website for tracking cryptocurrency assets. They have lots of exchanges and blockchains already integrated with the site to import automatically, but [STEEM](https://steem.io/) is not one of them. However, they do have a "Bulk CSV Import" option to add in data from different exchanges that don't have a dedicated import option.
 
-This script uses the amazing [SteemData](https://steemdata.com/) service provided by @netherdrake to fetch all transactions for a given user, and converts it to a CSV file that can be imported into CoinTracking.
+This script uses the amazing [SteemData](https://steemdata.com/) service provided by [netherdrake](https://github.com/netherdrake) to fetch all transactions for a given user, and converts it to a CSV file that can be imported into CoinTracking.
 
 [![cc-by-sa](https://i.creativecommons.org/l/by-sa/4.0/88x31.png)](http://creativecommons.org/licenses/by-sa/4.0/)
 
