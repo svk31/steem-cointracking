@@ -156,6 +156,7 @@ function parseCurrency(amount, timestamp) {
 
 function printAmount(amount) {
     if (amount.currency === "mVESTS") return amount.amount;
+    if (!amount.amount) return "";
     else {
         return (amount.amount / STEEMIT_BLOCKCHAIN_PRECISION).toFixed(3);
     }
@@ -403,7 +404,7 @@ function addEquivalentSteem(output) {
         let mvestBalance = findBalance(date, balances);
         let balance = parseCurrency({amount: mvestBalance * spmv, asset: "STEEM"});
 
-        if (balance) {
+        if (balance && balance.amount > 0) {
             if (!previousBalance) {
                 output = addOutputEntry(output, "Deposit", balance, null, null, "STEEM-Power",
                     "Steem Equivalents", `${user} estimated mVESTS value`, date.toString(), "dummy");
@@ -442,7 +443,7 @@ function addOutputEntry(output, type, buy, sell, fee, exchange, tradeGroup, comm
     output.push([
         type, printAmount(buy), buy.currency, printAmount(sell),
         sell.currency, printAmount(fee), fee.currency, exchange || EXCHANGE,
-        tradeGroup || "", comment || "", date
+        tradeGroup || "", comment || "", new Date(date).toISOString()
     ]);
 
     return output;
@@ -754,7 +755,7 @@ function doReport(recordData) {
                 }
                 if (data.new_account_name === user) {
                     out = addOutputEntry(
-                        out, "Gift", vests, null, null,
+                        out, "Deposit", vests, null, null,
                         POWER, null, `${user} Account creation VESTS`, timestamp, type, data.block
                     );
                 }
