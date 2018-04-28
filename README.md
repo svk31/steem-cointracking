@@ -1,4 +1,4 @@
-This is an import script for getting STEEM transactions into the CoinTracking.info site. It also includes a Poloniex history parser that groups orders by order number and reformats deposit/withdrawal history in the standard CoinTracking csv format.
+This is an import script for getting STEEM transactions into the CoinTracking.info site.
 
 This script started out as a fork of [steem-report](https://github.com/MidnightLightning/steem-report) but has since been refactored almost completely, since the `getAccountHistory` API call used in that repo appears to be broken.
 
