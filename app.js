@@ -1,15 +1,16 @@
 // const steem = require('steem');
 const MongoClient = require("mongodb").MongoClient;
 const f = require('util').format;
-const u = encodeURIComponent("steemit");
-const password = encodeURIComponent("steemit");
+const u = encodeURIComponent("");
+const password = encodeURIComponent("");
 const moment = require("moment");
 const authMechanism = 'DEFAULT';
 // Connection URL
-const url = f('mongodb://%s:%s@mongo1.steemdata.com:27017/SteemData?authMechanism=%s',
-u, password, authMechanism);
-const steem_per_mvests = require("./steem_per_mvests.json");
-const steem_per_mvests_blocks = Object.keys(steem_per_mvests).map(a => parseInt(a, 10)).sort((a, b) => a - b);
+const url = f('mongodb://localhost:27017/SteemData?authMechanism=%s',
+authMechanism);
+
+const {steemPerMvests} = require("./utils");
+
 const fs = require('fs');
 let client, db;
 if (process.argv.length < 3) {
@@ -28,7 +29,7 @@ const FILTER_TYPE = process.argv[5];
 * For accounting purposes we should record steem equivalents of any
 * income/mining rewards received as VESTS. To keep balances correct, the STEEM
 * equivalents will be recorded then immediately transfered away
- */
+*/
 const RECORD_STEEM_EQUIVALENTS = true;
 
 /* Define some blockchain constants */
@@ -39,9 +40,7 @@ const STEEM_HARDFORK_0_1_TIME = 1461605400; // 2016-04-25 17:30:00.000Z
 const STEEM_HARDFORK_0_1_TIME_MOMENT = moment(STEEM_HARDFORK_0_1_TIME * 1000);
 const STEEMIT_BLOCKCHAIN_PRECISION = 1000;
 const VESTS_SHARE_SPLIT = 1000000;
-const STEEM_PER_MVESTS_MAX_BLOCK = steem_per_mvests_blocks.reduce((a, b) => {
-    return (b > a ? b : a);
-}, 0);
+
 const EXCHANGE = "STEEM Blockchain";
 const POWER = "STEEM-Power";
 
@@ -162,48 +161,7 @@ function printAmount(amount) {
     }
 }
 
-// https://steemit.com/steemdev/@holger80/how-to-estimate-historic-steempermvests-values-for-converting-old-rewards-from-vest-to-steem
-function steemPerMvests(timestamp, block) {
 
-    /*
-    * The above formula is highly inaccurate for the early period of Steem,
-    * so we use stored values of steem_per_mvests from the blockchain instead
-    * (values extracted manually by svk31)
-    */
-    let actual;
-    if (block <= STEEM_PER_MVESTS_MAX_BLOCK) {
-        let index = steem_per_mvests_blocks.findIndex(a => {
-            return a >= block;
-        });
-
-        let x0 = steem_per_mvests_blocks[index - 1];
-        let y0 = steem_per_mvests[x0];
-        let x1 = steem_per_mvests_blocks[index];
-        let y1 = steem_per_mvests[x1];
-        actual = y0 + (block - x0)*(y1 - y0)/(x1 - x0);
-    }
-    const a = 2.1325476281078992e-05;
-    const b = -31099.685481490847;
-
-    const a2 = 2.9019227739473682e-07;
-    const b2 = 48.41432402074669;
-
-    /* Formula debugging */
-    // if (timestamp < (b2-b)/(a-a2)) {
-    //     if (actual) console.log(new Date(timestamp * 1000), block, "mVestsDelta:", actual -( a * timestamp + b));
-    // } else if (actual) {
-    //     console.log(new Date(timestamp * 1000), block, "mVestsDelta", actual - (a2 * timestamp + b2));
-    // } else {
-    //     console.log(new Date(timestamp * 1000), block, "no actual mVests calc");
-    // }
-
-    if (actual) return actual;
-    if (timestamp < (b2-b)/(a-a2)) {
-        return a * timestamp + b;
-    } else {
-        return a2 * timestamp + b2;
-    }
-}
 
 function filterEntries(entries) {
     let previous_pow;
@@ -252,25 +210,25 @@ function filterEntries(entries) {
             case "curation_reward":
             case "pow":
             case "author_reward":
-                /*
-                * some operations have duplicate entries that
-                * should be filtered out
-                */
-                let k = data.block + data.index;
-                if (!!possibleDuplicates[type][k]) {
-                    // console.log(`Remove duplicate ${type}`, data);
-                    delete entries[trx_id];
-                }
-                possibleDuplicates[type][k] = true;
-                break;
+            /*
+            * some operations have duplicate entries that
+            * should be filtered out
+            */
+            let k = data.block + data.index;
+            if (!!possibleDuplicates[type][k]) {
+                // console.log(`Remove duplicate ${type}`, data);
+                delete entries[trx_id];
+            }
+            possibleDuplicates[type][k] = true;
+            break;
 
             default:
-                let key = data.block + data.index;
-                if (possibleDuplicates[type][key]) {
-                    console.log("*** Possible duplicate:", data, possibleDuplicates[type][key]);
-                }
-                possibleDuplicates[type][key] = data;
-                break;
+            let key = data.block + data.index;
+            if (possibleDuplicates[type][key]) {
+                console.log("*** Possible duplicate:", data, possibleDuplicates[type][key]);
+            }
+            possibleDuplicates[type][key] = data;
+            break;
         }
     }
     console.log(`Removed ${entriesKeys.length - Object.keys(entries).length} entries by filtering`);
@@ -371,8 +329,8 @@ function groupEntries(entries) {
     return entries;
 }
 
-function asSteemPower(amount, timestamp, block) {
-    let spmv = steemPerMvests(timestamp, block);
+function asSteemPower(amount, timestamp) {
+    let spmv = steemPerMvests(timestamp);
 
     return {amount: amount.amount * spmv, currency: "STEEM"};
 }
@@ -391,7 +349,6 @@ function addEquivalentSteem(output) {
         if (date.isAfter(moment(bal[bal.length - 1][2]))) return Math.max(0, bal[bal.length - 1][3]);
         let balanceIndex = bal.findIndex((a, i) => {
             let d = moment(a[2]);
-            // console.log("date.isBefore(d)", date.isBefore(d), "date", date, "d:", d);
             return date.isBefore(d);
         });
         return Math.max(0, bal[Math.max(0, balanceIndex - 1)][3]);
@@ -407,25 +364,27 @@ function addEquivalentSteem(output) {
         if (balance && balance.amount > 0) {
             if (!previousBalance) {
                 output = addOutputEntry(output, "Deposit", balance, null, null, "STEEM-Power",
-                    "Steem Equivalents", `${user} estimated mVESTS value`, date.toString(), "dummy");
+                "Steem Equivalents Accounting", `${user} estimated mVESTS value`, date.toString(), "dummy");
             } else if (balance.amount !== previousBalance.amount) {
                 /* Add withdrawal of previous amount */
                 if (previousBalance.amount !== 0) output = addOutputEntry(output, "Withdrawal", null, previousBalance, null, "STEEM-Power",
-                    "Steem Equivalents", `${user} estimated mVESTS value`, date.subtract(1, "s").toString(), "dummy");
+                "Steem Equivalents Accounting", `${user} estimated mVESTS value`, date.subtract(1, "s").toString(), "dummy");
 
                 /* Add the new equivalent value */
                 if (balance.amount !== 0) output = addOutputEntry(output, "Deposit", balance, null, null, "STEEM-Power",
-                    "Steem Equivalents", `${user} estimated mVESTS value`, date.add(1, "s").toString(), "dummy");
+                "Steem Equivalents Accounting", `${user} estimated mVESTS value`, date.add(1, "s").toString(), "dummy");
 
             }
             previousBalance = balance;
         }
 
-        /* Iterate throught the dates of the 1st, the 15th, and the last day of the month */
-        if (date.date() === 1) date.date(15);
-        else if (date.date() === 15) date.date(31);
-        else date.add(1, "month").date(1);
-
+        /* Iterate through the dates of the last day of every month from the start */
+        if (date.isSame(startDate)) {
+            date.add(1, "month").date(1).subtract(1, "day").hour(23);
+        }
+        else {
+            date.add(2, "month").date(1).subtract(1, "day");
+        }
     }
 
     return output;
@@ -453,7 +412,7 @@ function recordSteemEquivalent(out, recordType, vests, comment, timestamp, type,
     if (!RECORD_STEEM_EQUIVALENTS) return out;
     let trxDate = new Date(timestamp).getTime() / 1000;
     let steemEquivalent = parseCurrency({
-        amount: steemPerMvests(trxDate, block)  * vests.amount,
+        amount: steemPerMvests(trxDate)  * vests.amount,
         asset: "STEEM"
     });
 
@@ -507,8 +466,8 @@ function doReport(recordData) {
             case 'claim_reward_balance': {
                 /*
                 * Don't include these operations as they will cause double entries
-               * since the rewards are also registered as author_reward and curation_reward
-               * operations
+                * since the rewards are also registered as author_reward and curation_reward
+                * operations
                 */
 
                 break;
@@ -541,7 +500,11 @@ function doReport(recordData) {
                     * All producer rewards received after the end of mining are
                     * in VESTS, but for accounting purposes we can record their
                     * STEEM value at the time of reception and then immediately
-                    * after transfer them away so they don't mess up the balances
+                    * after transfer them away so they don't mess up the balances.
+                    * An additional complicating factor is the vesting period,
+                    * which means that the STEEM was not immediately available.
+                    * At best, the user could receive 1/104th of the reward
+                    * starting one week after receiving it. This was changed to 1/13
                     */
                     out = recordSteemEquivalent(
                         out, "Mining", vests, `${user} mining mVESTS STEEM value`,
@@ -632,7 +595,7 @@ function doReport(recordData) {
             case 'transfer_to_vesting': {
                 let trxDate = Date.parse(timestamp)/1000;
                 let funds = parseCurrency(data.amount, timestamp);
-                let mVests = data.amount.amount / steemPerMvests(trxDate, data.block)
+                let mVests = data.amount.amount / steemPerMvests(trxDate)
 
                 let isBeforeHardFork = moment(timestamp).isBefore(STEEM_HARDFORK_0_1_TIME_MOMENT);
                 let vests = parseCurrency({amount: mVests * (isBeforeHardFork ? 1 : 1000000), asset: "VESTS"}, timestamp);
@@ -641,12 +604,12 @@ function doReport(recordData) {
                     // Converted STEEM to STEEM Power
                     out = addOutputEntry(
                         out, "Withdrawal", null, funds, null,
-                        null, null, `To ${vests.amount} mVESTS`, timestamp, type, data.block
+                        null, null, `To ${printAmount(vests)} ${vests.currency}`, timestamp, type, data.block
                     );
 
                     out = addOutputEntry(
                         out, "Deposit", vests, null, null,
-                        POWER, null, `From ${funds.amount} STEEM`, timestamp, type, data.block
+                        POWER, null, `From ${printAmount(funds)} ${funds.currency}`, timestamp, type, data.block
                     );
 
                 } else if (data.from == user) {
@@ -659,7 +622,7 @@ function doReport(recordData) {
                     /* Transfer to vesting from someone else to me */
                     out = addOutputEntry(
                         out, "Deposit", vests, null, null,
-                        POWER, null, `${funds.amount} ${funds.currency} vested from ${data.from}`, timestamp, type, data.block
+                        POWER, null, `${printAmount(funds)} ${funds.currency} vested from ${data.from}`, timestamp, type, data.block
                     );
                 }
                 break;
@@ -723,7 +686,7 @@ function doReport(recordData) {
                     */
                     let trxDate = new Date(timestamp).getTime() / 1000;
                     let steemEquivalent = parseCurrency({
-                        amount: steemPerMvests(trxDate, data.block)  * vests.amount,
+                        amount: steemPerMvests(trxDate)  * vests.amount,
                         asset: "STEEM"
                     });
                     out = addOutputEntry(
@@ -740,26 +703,26 @@ function doReport(recordData) {
             }
 
             case "account_create":
-                /* Account creation takes the fee and converts it to VESTS for the account*/
-                let trxDate = Date.parse(timestamp)/1000;
-                fee = parseCurrency(data.fee);
-                let vestedSteem = data.fee.amount / steemPerMvests(trxDate, data.block);
-                let isBeforeHardFork = moment(timestamp).isBefore(STEEM_HARDFORK_0_1_TIME_MOMENT);
-                let vests = parseCurrency({amount: vestedSteem * (isBeforeHardFork ? 1 : 1000000), asset: "VESTS"}, timestamp);
-                if (data.creator === user) {
+            /* Account creation takes the fee and converts it to VESTS for the account*/
+            let trxDate = Date.parse(timestamp)/1000;
+            fee = parseCurrency(data.fee);
+            let vestedSteem = data.fee.amount / steemPerMvests(trxDate);
+            let isBeforeHardFork = moment(timestamp).isBefore(STEEM_HARDFORK_0_1_TIME_MOMENT);
+            let vests = parseCurrency({amount: vestedSteem * (isBeforeHardFork ? 1 : 1000000), asset: "VESTS"}, timestamp);
+            if (data.creator === user) {
 
-                    out = addOutputEntry(
-                        out, "Withdrawal", null, fee, null,
-                        null, null, `Create account ${data.new_account_name}`, timestamp, type, data.block
-                    );
-                }
-                if (data.new_account_name === user) {
-                    out = addOutputEntry(
-                        out, "Deposit", vests, null, null,
-                        POWER, null, `${user} Account creation VESTS`, timestamp, type, data.block
-                    );
-                }
-                break;
+                out = addOutputEntry(
+                    out, "Withdrawal", null, fee, null,
+                    null, null, `Create account ${data.new_account_name}`, timestamp, type, data.block
+                );
+            }
+            if (data.new_account_name === user) {
+                out = addOutputEntry(
+                    out, "Deposit", vests, null, null,
+                    POWER, null, `${user} Account creation VESTS`, timestamp, type, data.block
+                );
+            }
+            break;
 
             case "account_create_with_delegation": {
                 if (data.creator === user) {
@@ -799,7 +762,7 @@ function doReport(recordData) {
                     */
                     let trxDate = new Date(timestamp).getTime() / 1000;
                     let steemEquivalent = parseCurrency({
-                        amount: steemPerMvests(trxDate, data.block)  * vestingReward.amount,
+                        amount: steemPerMvests(trxDate)  * vestingReward.amount,
                         asset: "STEEM"
                     });
                     out = addOutputEntry(
@@ -822,7 +785,7 @@ function doReport(recordData) {
             }
 
             default:
-                console.log("unhandled type", type, data);
+            console.log("unhandled type", type, data);
         }
     }
 

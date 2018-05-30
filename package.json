@@ -6,6 +6,7 @@
   "author": "svk31",
   "license": "Creative Commons Attribution-ShareAlike 4.0 International License",
   "dependencies": {
+    "csv-reader": "^1.0.3",
     "moment": "^2.22.0",
     "mongodb": "^3.0.6",
     "node-fetch": "^2.1.2"
