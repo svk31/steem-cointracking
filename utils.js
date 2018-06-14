@@ -1,6 +1,8 @@
 const steem_per_mvests = require("./steem_per_mvests.json");
 const steem_per_mvests_timestamps = Object.keys(steem_per_mvests).map(a => parseInt(a, 10)).sort((a, b) => a - b);
 
+const {STEEMIT_BLOCKCHAIN_PRECISION, STEEM_HARDFORK_0_1_TIME} = require("./constants");
+
 const STEEM_PER_MVESTS_MAX_TIME = steem_per_mvests_timestamps.reduce((a, b) => {
     return (b > a ? b : a);
 }, 0);
@@ -53,6 +55,46 @@ function steemPerMvests(timestamp, debug = false) {
     }
 }
 
+function mVESTS(amount) {
+    return parseFloat((amount / 1000000));
+}
+
+function parseCurrency(amount, timestamp) {
+    if (amount.asset === "VESTS") {
+        /*
+        * On April 25 a reverse share-split hardfork was implemented to address
+        * VESTS precision, making 1 old VESTS equal to VESTS_SHARE_SPLIT new VESTS
+        * VESTS_SHARE_SPLIT = 1000000
+        */
+        if (new Date(timestamp).getTime() / 1000 <= STEEM_HARDFORK_0_1_TIME) {
+            return {
+                amount: amount.amount,
+                currency: "mVESTS"
+            }
+        }
+
+        return {
+            amount: mVESTS(amount.amount),
+            currency: "mVESTS"
+        }
+    }
+    return {
+        amount: parseInt(amount.amount * STEEMIT_BLOCKCHAIN_PRECISION, 10),
+        currency: amount.asset
+    };
+}
+
+function printAmount(amount) {
+    if (amount.currency === "mVESTS") return amount.amount;
+    if (!amount.amount) return "";
+    else {
+        return (amount.amount / STEEMIT_BLOCKCHAIN_PRECISION).toFixed(3);
+    }
+}
+
 module.exports = {
-    steemPerMvests
+    steemPerMvests,
+    mVESTS,
+    parseCurrency,
+    printAmount
 };
