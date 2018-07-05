@@ -1,10 +1,10 @@
 const MongoClient = require("mongodb").MongoClient;
+const config = require("./config");
+
 const f = require('util').format;
-const u = encodeURIComponent("");
-const password = encodeURIComponent("");
 const authMechanism = 'DEFAULT';
 // Connection URL
-const url = f('mongodb://localhost:27017/SteemData?authMechanism=%s',
+const url = f(`mongodb://${config.mongoUrl}:${config.mongoPort}/SteemData?authMechanism=%s`,
 authMechanism);
 const {parseCurrency} = require("./utils");
 const moment = require("moment");
